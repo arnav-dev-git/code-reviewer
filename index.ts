@@ -18,5 +18,6 @@ app.get("/api/webhook/github", (req, res) => {
 app.post("/api/webhook/github", githubWebhook);
 
 app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+  console.clear();
+  console.log(`🚀 Server is running on port ${PORT} ...`);
 });

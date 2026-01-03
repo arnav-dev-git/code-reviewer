@@ -1,12 +1,14 @@
-import path from "path";
 import { Request, Response } from "express";
 import { getInstallationToken } from "../../../githubAuth";
-import {
-  fetchPullRequestFiles,
-  parsePatch,
-  postReviewComment,
-} from "./PRUtils";
+import { fetchPullRequestFiles, postReviewComment } from "./PRUtils";
 import getCodeReview from "../../../utils/promptHandler/promptHandler";
+import withTransaction from "../../../database/withTransaction.js";
+import {
+  insertOrUpdateRepository,
+  insertOrUpdatePullRequest,
+  insertCodeEvaluation,
+  insertEvaluationRun,
+} from "../../../database/queries/evalution.queries.js";
 
 export const githubWebhook = async (req: Request, res: Response) => {
   const event = req.headers["x-github-event"];
@@ -21,12 +23,14 @@ export const githubWebhook = async (req: Request, res: Response) => {
   }
 
   const payload = {
+    repoId: req.body.repository.id,
     repoFullName: req.body.repository.full_name,
     owner: req.body.repository.owner.login,
     repo: req.body.repository.name,
     prNumber: req.body.number,
     prTitle: req.body.pull_request.title,
-    prUrl: req.body.pull_request.html_url,
+    prAuthor: req.body.pull_request.user.login,
+    prHeadSha: req.body.pull_request.head.sha,
     installationId: req.body.installation.id,
   };
 
@@ -62,6 +66,60 @@ export const githubWebhook = async (req: Request, res: Response) => {
 
   if (!codeReview) {
     return res.sendStatus(200);
+  }
+
+  /**
+   * DB STORAGE
+   */
+  try {
+    await withTransaction(async (conn) => {
+      await insertOrUpdateRepository(conn, {
+        githubRepoId: payload.repoId,
+        owner: payload.owner,
+        name: payload.repo,
+      });
+      
+      await insertOrUpdatePullRequest(conn, {
+        githubRepoId: payload.repoId,
+        prNumber: payload.prNumber,
+        title: payload.prTitle,
+        author: payload.prAuthor,
+        headSha: payload.prHeadSha,
+      });
+      
+      await insertCodeEvaluation(conn, {
+        githubRepoId: payload.repoId,
+        prNumber: payload.prNumber,
+        agentId: 1,
+        scores: { 
+          correctness: codeReview.scores.correctness,
+          security: codeReview.scores.security,
+          maintainability: codeReview.scores.maintainability,
+          clarity: codeReview.scores.clarity,
+          productionReadiness: codeReview.scores.production_readiness,  
+        },
+        reasons: {
+          correctness: codeReview.justification.correctness,
+          security: codeReview.justification.security,
+          maintainability: codeReview.justification.maintainability,
+          clarity: codeReview.justification.clarity,
+          productionReadiness: codeReview.justification.production_readiness,
+        },
+        overallSummary: codeReview.overall_summary,
+      });
+      
+      await insertEvaluationRun(conn, {
+        githubRepoId: payload.repoId,
+        prNumber: payload.prNumber,
+        agentId: 1,
+        headSha: payload.prHeadSha,
+        status: "success",
+      });
+    });
+  } catch (err) {
+    console.error("❌ DB persistence failed:", err);
+    throw err;
+    // webhook intentionally does not fail
   }
 
   const reviewCommentUploadStatus = await postReviewComment(
