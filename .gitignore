@@ -1,6 +1,6 @@
-node_modules/*
-dist/*
-.env
+*/node_modules/*
+*/dist/*
+*.env
 *.pem
-desktop.ini
+*desktop.ini
 *.zip

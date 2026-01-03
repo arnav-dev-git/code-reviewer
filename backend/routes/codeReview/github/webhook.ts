@@ -62,7 +62,7 @@ export const githubWebhook = async (req: Request, res: Response) => {
   }
 
   const codeReview = await getCodeReview(JSON.stringify(changes));
-  console.log("🧠 Code Review:", codeReview);
+  // console.log("🧠 Code Review:", codeReview);
 
   if (!codeReview) {
     return res.sendStatus(200);
@@ -129,7 +129,8 @@ export const githubWebhook = async (req: Request, res: Response) => {
     payload.prNumber,
     codeReview
   );
-  console.log("💬 Review Comment Upload Status:", reviewCommentUploadStatus);
+  // console.log("💬 Review Comment Upload Status:", reviewCommentUploadStatus);
+  console.log("✅ Review Comment Uploaded Successfully");
 
   res.sendStatus(200);
 };
