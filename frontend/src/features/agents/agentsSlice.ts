@@ -1,43 +1,140 @@
-import { createSlice, PayloadAction } from "@reduxjs/toolkit";
-import { v4 as uuid } from "uuid";
+import { createSlice, createAsyncThunk, PayloadAction } from "@reduxjs/toolkit";
 import type { Agent } from "./agentTypes";
-import { loadAgents, saveAgents } from "./agentStorage";
+import { agentsApi } from "../../services/api";
 
-const now = () => new Date().toISOString();
+interface AgentsState {
+  agents: Agent[];
+  loading: boolean;
+  error: string | null;
+}
 
-const createDefaultAgent = (): Agent => ({
-  id: uuid(),
-  name: "Security Expert",
-  description: "Focus on auth, input validation, secrets, and common vulnerabilities.",
-  generationPromptHtml: "<p>You are a senior security reviewer.</p><p>Code: <code>{code_chunk}</code></p>",
-  evaluationPromptHtml: "<p>Evaluate relevance, accuracy, actionability, clarity, helpfulness. JSON only.</p>",
-  variables: ["{code_chunk}", "{file_type}", "{context}"],
-  evaluationDimensions: { relevance: true, accuracy: true, actionability: true, clarity: true, helpfulness: true },
-  settings: { enabled: true, severityThreshold: 6, fileTypeFilters: ["ts","js"], repositories: [] },
-  createdAt: now(),
-  updatedAt: now(),
+const initialState: AgentsState = {
+  agents: [],
+  loading: false,
+  error: null,
+};
+
+// Async thunks
+export const fetchAgents = createAsyncThunk("agents/fetchAll", async () => {
+  return await agentsApi.getAll();
+});
+
+export const fetchAgentById = createAsyncThunk("agents/fetchById", async (id: string) => {
+  return await agentsApi.getById(id);
+});
+
+export const createAgent = createAsyncThunk(
+  "agents/create",
+  async (agent: Omit<Agent, "createdAt" | "updatedAt">) => {
+    return await agentsApi.create(agent);
+  }
+);
+
+export const updateAgent = createAsyncThunk(
+  "agents/update",
+  async (agent: Omit<Agent, "createdAt">) => {
+    return await agentsApi.update(agent);
+  }
+);
+
+export const deleteAgent = createAsyncThunk("agents/delete", async (id: string) => {
+  await agentsApi.delete(id);
+  return id;
 });
 
 const slice = createSlice({
   name: "agents",
-  initialState: { agents: loadAgents() as Agent[] },
+  initialState,
   reducers: {
-    createAgent(state) {
-      state.agents.unshift(createDefaultAgent());
-      saveAgents(state.agents);
+    clearError(state) {
+      state.error = null;
     },
-    upsertAgent(state, action: PayloadAction<Agent>) {
-      const i = state.agents.findIndex(a => a.id === action.payload.id);
-      if (i >= 0) state.agents[i] = action.payload;
-      else state.agents.unshift(action.payload);
-      saveAgents(state.agents);
-    },
-    deleteAgent(state, action: PayloadAction<string>) {
-      state.agents = state.agents.filter(a => a.id !== action.payload);
-      saveAgents(state.agents);
-    },
+  },
+  extraReducers: (builder) => {
+    // Fetch all agents
+    builder
+      .addCase(fetchAgents.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchAgents.fulfilled, (state, action) => {
+        state.loading = false;
+        state.agents = action.payload;
+      })
+      .addCase(fetchAgents.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || "Failed to fetch agents";
+      });
+
+    // Fetch agent by ID
+    builder
+      .addCase(fetchAgentById.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchAgentById.fulfilled, (state, action) => {
+        state.loading = false;
+        const index = state.agents.findIndex((a) => a.id === action.payload.id);
+        if (index >= 0) {
+          state.agents[index] = action.payload;
+        } else {
+          state.agents.push(action.payload);
+        }
+      })
+      .addCase(fetchAgentById.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || "Failed to fetch agent";
+      });
+
+    // Create agent
+    builder
+      .addCase(createAgent.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(createAgent.fulfilled, (state, action) => {
+        state.loading = false;
+        state.agents.unshift(action.payload);
+      })
+      .addCase(createAgent.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || "Failed to create agent";
+      });
+
+    // Update agent
+    builder
+      .addCase(updateAgent.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(updateAgent.fulfilled, (state, action) => {
+        state.loading = false;
+        const index = state.agents.findIndex((a) => a.id === action.payload.id);
+        if (index >= 0) {
+          state.agents[index] = action.payload;
+        }
+      })
+      .addCase(updateAgent.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || "Failed to update agent";
+      });
+
+    // Delete agent
+    builder
+      .addCase(deleteAgent.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(deleteAgent.fulfilled, (state, action) => {
+        state.loading = false;
+        state.agents = state.agents.filter((a) => a.id !== action.payload);
+      })
+      .addCase(deleteAgent.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || "Failed to delete agent";
+      });
   },
 });
 
-export const { createAgent, upsertAgent, deleteAgent } = slice.actions;
+export const { clearError } = slice.actions;
 export default slice.reducer;

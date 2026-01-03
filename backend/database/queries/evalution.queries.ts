@@ -84,7 +84,7 @@ export async function insertCodeEvaluation(
   params: {
     githubRepoId: number;
     prNumber: number;
-    agentId: number;
+    agentId: string;
     scores: {
       correctness: number;
       security: number;
@@ -169,7 +169,7 @@ export async function insertEvaluationRun(
   params: {
     githubRepoId: number;
     prNumber: number;
-    agentId: number;
+    agentId: string;
     headSha: string;
     status: "success" | "failed";
     errorMessage?: string | null;

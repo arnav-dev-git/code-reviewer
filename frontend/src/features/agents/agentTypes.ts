@@ -17,8 +17,7 @@ export type Agent = {
   id: string;
   name: string;
   description: string;
-  generationPromptHtml: string;
-  evaluationPromptHtml: string;
+  promptHtml: string;
   variables: string[];
   evaluationDimensions: EvaluationDimensions;
   settings: AgentSettings;

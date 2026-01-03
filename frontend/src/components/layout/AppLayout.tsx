@@ -1,18 +1,34 @@
 import { PropsWithChildren } from "react";
-import { AppBar, Box, Toolbar, Typography, Container } from "@mui/material";
+import { AppBar, Box, Toolbar, Typography, Container, Button } from "@mui/material";
+import { useNavigate, useLocation } from "react-router-dom";
 
 export default function AppLayout({ children }: PropsWithChildren) {
+  const navigate = useNavigate();
+  const location = useLocation();
+
   return (
     <Box sx={{ minHeight: "100vh" }}>
       <AppBar position="sticky" elevation={0} sx={{ borderBottom: "1px solid", borderColor: "divider" }}>
         <Toolbar sx={{ gap: 2 }}>
           <Typography variant="h6" sx={{ fontWeight: 800 }}>
-            Agent Management Dashboard
+            GitHub PR Review Bot
           </Typography>
           <Box sx={{ flex: 1 }} />
-          <Typography variant="body2" sx={{ opacity: 0.8 }}>
-            Dark • MUI • Redux
-          </Typography>
+          <Button
+            color="inherit"
+            onClick={() => navigate("/agents")}
+            variant={location.pathname.startsWith("/agents") ? "outlined" : "text"}
+            sx={{ mr: 1 }}
+          >
+            Agents
+          </Button>
+          <Button
+            color="inherit"
+            onClick={() => navigate("/reviews")}
+            variant={location.pathname === "/reviews" ? "outlined" : "text"}
+          >
+            Reviews
+          </Button>
         </Toolbar>
       </AppBar>
       <Container maxWidth="lg" sx={{ py: 3 }}>

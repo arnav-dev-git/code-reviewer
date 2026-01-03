@@ -58,7 +58,7 @@ async function setupDatabase() {
 
     github_repo_id BIGINT NOT NULL,
     pr_number INT NOT NULL,
-    agent_id BIGINT NOT NULL,
+    agent_id VARCHAR(36) NOT NULL,
 
     correctness_score TINYINT NOT NULL,
     security_score TINYINT NOT NULL,
@@ -91,7 +91,7 @@ async function setupDatabase() {
 
     github_repo_id BIGINT NOT NULL,
     pr_number INT NOT NULL,
-    agent_id BIGINT NOT NULL,
+    agent_id VARCHAR(36) NOT NULL,
     head_sha VARCHAR(64) NOT NULL,
 
     status ENUM('success', 'failed') NOT NULL,
@@ -104,6 +104,25 @@ async function setupDatabase() {
       agent_id,
       head_sha
     )
+  );
+
+  /* -----------------------------
+     Agents
+     ----------------------------- */
+  CREATE TABLE agents (
+    id VARCHAR(36) PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    prompt_html TEXT NOT NULL,
+    variables JSON NOT NULL,
+    evaluation_dimensions JSON NOT NULL,
+    settings JSON NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ON UPDATE CURRENT_TIMESTAMP,
+
+    INDEX idx_agents_created (created_at),
+    INDEX idx_agents_updated (updated_at)
   );
   `;
 
