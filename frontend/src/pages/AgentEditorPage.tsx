@@ -77,10 +77,26 @@ export default function AgentEditorPage() {
       setPromptHtml("");
     } else if (agent) {
       // Load existing agent
-      setFormData(agent);
+      // Ensure repositories array is properly set (backend fetches from mapping table)
+      const agentWithRepos = {
+        ...agent,
+        settings: {
+          ...agent.settings,
+          repositories: Array.isArray(agent.settings?.repositories) 
+            ? agent.settings.repositories 
+            : [],
+        },
+      };
+      setFormData(agentWithRepos);
       setPromptHtml(agent.promptHtml);
+      console.log("📥 Loaded agent repositories:", agentWithRepos.settings.repositories);
     }
   }, [agent, isNew]);
+
+  // Debug: Log formData changes
+  useEffect(() => {
+    console.log("📊 formData.settings.repositories changed:", formData.settings?.repositories);
+  }, [formData.settings?.repositories]);
 
   const handleSave = async () => {
     if (!formData) return;
@@ -93,6 +109,40 @@ export default function AgentEditorPage() {
 
     setSaving(true);
     try {
+      // Ensure settings exists and has all required fields
+      const currentSettings = formData.settings || {
+        enabled: true,
+        severityThreshold: 6,
+        fileTypeFilters: [],
+        repositories: [],
+      };
+      
+      // Debug: Log current formData state
+      console.log("🔍 handleSave - Current formData:", JSON.stringify(formData, null, 2));
+      console.log("🔍 handleSave - formData.settings:", formData.settings);
+      console.log("🔍 handleSave - currentSettings:", currentSettings);
+      console.log("🔍 handleSave - currentSettings.repositories:", currentSettings.repositories);
+      
+      const repositories = Array.isArray(currentSettings.repositories) 
+        ? currentSettings.repositories.filter((r: string) => r && r.trim() !== "")
+        : [];
+      
+      console.log("🔍 handleSave - Filtered repositories:", repositories);
+      
+      const fileTypeFilters = Array.isArray(currentSettings.fileTypeFilters) 
+        ? currentSettings.fileTypeFilters.filter((f: string) => f && f.trim() !== "")
+        : [];
+      
+      const settings = {
+        enabled: currentSettings.enabled ?? true,
+        severityThreshold: currentSettings.severityThreshold ?? 6,
+        fileTypeFilters,
+        repositories: repositories, // Explicitly set repositories - MUST be included
+      };
+      
+      console.log("🔍 handleSave - Final settings object:", JSON.stringify(settings, null, 2));
+      console.log("🔍 handleSave - settings.repositories:", settings.repositories);
+
       const agentToSave = {
         id: isNew ? uuid() : (agent?.id || uuid()),
         name: formData.name!,
@@ -106,14 +156,22 @@ export default function AgentEditorPage() {
           clarity: true,
           helpfulness: true,
         },
-        settings: formData.settings || {
-          enabled: true,
-          severityThreshold: 6,
-          fileTypeFilters: [],
-          repositories: [],
+        settings: {
+          ...settings,
+          repositories: repositories, // Explicitly include repositories
         },
         ...(isNew ? {} : { updatedAt: new Date().toISOString() }),
       };
+
+      console.log("💾 Saving agent:", {
+        id: agentToSave.id,
+        name: agentToSave.name,
+        formDataSettings: formData.settings,
+        repositories: settings.repositories,
+        repositoriesCount: settings.repositories.length,
+        agentToSaveSettings: agentToSave.settings,
+        fullPayload: JSON.stringify(agentToSave, null, 2)
+      });
 
       if (isNew) {
         await dispatch(createAgent(agentToSave)).unwrap();
@@ -130,21 +188,68 @@ export default function AgentEditorPage() {
   };
 
   const handleFieldChange = (field: keyof Agent, value: any) => {
-    setFormData((prev) => (prev ? { ...prev, [field]: value } : null));
+    setFormData((prev) => {
+      if (!prev) return createEmptyAgent();
+      return { ...prev, [field]: value };
+    });
   };
 
   const handleSettingsChange = (field: keyof Agent["settings"], value: any) => {
-    setFormData((prev) =>
-      prev
-        ? {
-            ...prev,
-            settings: {
-              ...prev.settings!,
-              [field]: value,
-            },
-          }
-        : null
-    );
+    console.log(`⚙️ handleSettingsChange: field=${field}, value=`, value);
+    console.log(`⚙️ Current formData before update:`, JSON.stringify(formData, null, 2));
+    
+    setFormData((prev) => {
+      if (!prev) {
+        const empty = createEmptyAgent();
+        const emptySettings = empty.settings || {
+          enabled: true,
+          severityThreshold: 6,
+          fileTypeFilters: [],
+          repositories: [],
+        };
+        return {
+          ...empty,
+          settings: {
+            ...emptySettings,
+            [field]: value,
+          },
+        } as Partial<Agent>;
+      }
+      
+      // Ensure settings exists
+      const currentSettings = prev.settings || {
+        enabled: true,
+        severityThreshold: 6,
+        fileTypeFilters: [],
+        repositories: [],
+      };
+      
+      // Build new settings object with updated field
+      const newSettings = {
+        enabled: currentSettings.enabled ?? true,
+        severityThreshold: currentSettings.severityThreshold ?? 6,
+        fileTypeFilters: Array.isArray(currentSettings.fileTypeFilters) 
+          ? currentSettings.fileTypeFilters 
+          : [],
+        repositories: Array.isArray(currentSettings.repositories) 
+          ? currentSettings.repositories 
+          : [],
+        [field]: value, // This will override the field above
+      } as Agent["settings"];
+      
+      console.log(`✅ Updated settings.${field}:`, newSettings[field]);
+      console.log(`📋 Full newSettings:`, JSON.stringify(newSettings, null, 2));
+      
+      const updated: Partial<Agent> = {
+        ...prev,
+        settings: newSettings,
+      };
+      
+      console.log(`🔄 Updated formData.settings.repositories:`, updated.settings?.repositories);
+      console.log(`🔄 Full updated formData:`, JSON.stringify(updated, null, 2));
+      
+      return updated;
+    });
   };
 
   if (loading && !isNew && !agent) {
@@ -245,9 +350,13 @@ export default function AgentEditorPage() {
             <Divider />
 
             <RepositorySelector
-              repositories={formData.settings?.repositories ?? []}
-              onChange={(repos) => handleSettingsChange("repositories", repos)}
-          />
+              repositories={Array.isArray(formData.settings?.repositories) ? formData.settings.repositories : []}
+              onChange={(repos) => {
+                console.log("📝 RepositorySelector onChange called with:", repos);
+                console.log("📝 Current formData before update:", JSON.stringify(formData.settings, null, 2));
+                handleSettingsChange("repositories", repos);
+              }}
+            />
           </Stack>
         </Paper>
 

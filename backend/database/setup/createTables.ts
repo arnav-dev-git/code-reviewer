@@ -30,7 +30,23 @@ async function setupDatabase() {
     github_repo_id BIGINT NOT NULL UNIQUE,
     owner VARCHAR(255) NOT NULL,
     name VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    full_name VARCHAR(512) NOT NULL,
+    description TEXT,
+    url VARCHAR(512),
+    html_url VARCHAR(512),
+    is_private BOOLEAN DEFAULT FALSE,
+    default_branch VARCHAR(255) DEFAULT 'main',
+    language VARCHAR(100),
+    stars_count INT DEFAULT 0,
+    forks_count INT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ON UPDATE CURRENT_TIMESTAMP,
+
+    INDEX idx_repo_owner (owner),
+    INDEX idx_repo_name (name),
+    INDEX idx_repo_full_name (full_name),
+    INDEX idx_repo_created (created_at)
   );
 
   /* -----------------------------
@@ -123,6 +139,25 @@ async function setupDatabase() {
 
     INDEX idx_agents_created (created_at),
     INDEX idx_agents_updated (updated_at)
+  );
+
+  /* -----------------------------
+     Agent-Repository Mapping
+     (Many-to-Many relationship)
+     ----------------------------- */
+  CREATE TABLE agent_repositories (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    agent_id VARCHAR(36) NOT NULL,
+    repository_id BIGINT NOT NULL,
+    repository_full_name VARCHAR(512) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uniq_agent_repo (agent_id, repository_id),
+    UNIQUE KEY uniq_agent_repo_name (agent_id, repository_full_name),
+    INDEX idx_agent_repo_agent (agent_id),
+    INDEX idx_agent_repo_repo_id (repository_id),
+    INDEX idx_agent_repo_repo_name (repository_full_name),
+    FOREIGN KEY (repository_id) REFERENCES repositories(id) ON DELETE CASCADE
   );
   `;
 

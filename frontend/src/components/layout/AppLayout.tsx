@@ -24,6 +24,14 @@ export default function AppLayout({ children }: PropsWithChildren) {
           </Button>
           <Button
             color="inherit"
+            onClick={() => navigate("/repositories")}
+            variant={location.pathname === "/repositories" ? "outlined" : "text"}
+            sx={{ mr: 1 }}
+          >
+            Repositories
+          </Button>
+          <Button
+            color="inherit"
             onClick={() => navigate("/reviews")}
             variant={location.pathname === "/reviews" ? "outlined" : "text"}
           >

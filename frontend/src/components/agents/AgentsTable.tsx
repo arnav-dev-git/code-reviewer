@@ -28,26 +28,56 @@ export default function AgentsTable({ rows }: { rows: Agent[] }) {
     {
       field: "repositories",
       headerName: "Repositories",
-      width: 150,
-      renderCell: (params) => (
-        <Chip
-          label={params.row.settings?.repositories?.length || 0}
-          size="small"
-          variant="outlined"
-        />
-      ),
+      width: 200,
+      renderCell: (params) => {
+        // Repositories are populated from agent_repositories mapping table by backend
+        const repos = params.row.settings?.repositories;
+        const reposArray = Array.isArray(repos) ? repos : [];
+        const count = reposArray.length;
+        
+        if (count === 0) {
+          return (
+            <Chip
+              label="All"
+              size="small"
+              variant="outlined"
+              color="default"
+              title="No repository filter - reviews all repositories"
+            />
+          );
+        }
+        
+        // Show first repo and count if more
+        const displayText = count === 1 
+          ? reposArray[0] 
+          : `${reposArray[0]} (+${count - 1})`;
+        
+        return (
+          <Chip
+            label={displayText}
+            size="small"
+            variant="outlined"
+            color="primary"
+            title={reposArray.join(", ")} // Tooltip with all repos
+          />
+        );
+      },
     },
     {
       field: "fileTypes",
       headerName: "File Types",
       width: 150,
-      renderCell: (params) => (
-        <Chip
-          label={params.row.settings?.fileTypeFilters?.length || "All"}
-          size="small"
-          variant="outlined"
-        />
-      ),
+      renderCell: (params) => {
+        const fileTypes = params.row.settings?.fileTypeFilters;
+        const count = Array.isArray(fileTypes) ? fileTypes.length : 0;
+        return (
+          <Chip
+            label={count > 0 ? count : "All"}
+            size="small"
+            variant="outlined"
+          />
+        );
+      },
     },
     {
       field: "createdAt",

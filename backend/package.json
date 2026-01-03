@@ -8,6 +8,10 @@
     "start": "node dist/index.js",
     "dev": "nodemon --exec tsx index.ts",
     "setup-db": "tsx database/setup/createTables.ts",
+    "migrate-agent-id": "tsx database/setup/migrateAgentId.ts",
+    "migrate-repositories": "tsx database/setup/migrateRepositories.ts",
+    "migrate-agent-repositories": "tsx database/setup/migrateAgentRepositories.ts",
+    "migrate-add-repository-id": "tsx database/setup/migrateAddRepositoryId.ts",
     "test": "jest",
     "test:watch": "jest --watch"
   },

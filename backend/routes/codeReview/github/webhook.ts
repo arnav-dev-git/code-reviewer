@@ -30,6 +30,15 @@ async function processWebhook(payload: any, token: string) {
           githubRepoId: payload.repoId,
           owner: payload.owner,
           name: payload.repo,
+          fullName: payload.repoFullName,
+          description: payload.repository?.description || null,
+          url: payload.repository?.url || null,
+          htmlUrl: payload.repository?.htmlUrl || null,
+          isPrivate: payload.repository?.isPrivate || false,
+          defaultBranch: payload.repository?.defaultBranch || 'main',
+          language: payload.repository?.language || null,
+          starsCount: payload.repository?.starsCount || 0,
+          forksCount: payload.repository?.forksCount || 0,
         });
         
         await insertOrUpdatePullRequest(conn, {
@@ -52,7 +61,7 @@ async function processWebhook(payload: any, token: string) {
     const agents = await getAgentsForReview(payload.repoFullName, fileExtension);
     
     if (agents.length === 0) {
-      console.log(`⏭️  No agents configured for ${file.filename} in ${payload.repoFullName}`);
+      console.log(`⏭️  Skipping ${file.filename} in ${payload.repoFullName} - no matching agents found`);
       continue;
     }
 
@@ -182,6 +191,17 @@ export const githubWebhook = async (req: Request, res: Response) => {
     prAuthor: req.body.pull_request.user.login,
     prHeadSha: req.body.pull_request.head.sha,
     installationId: req.body.installation.id,
+    // Repository metadata
+    repository: {
+      description: req.body.repository?.description || null,
+      url: req.body.repository?.url || null,
+      htmlUrl: req.body.repository?.html_url || null,
+      isPrivate: req.body.repository?.private || false,
+      defaultBranch: req.body.repository?.default_branch || 'main',
+      language: req.body.repository?.language || null,
+      starsCount: req.body.repository?.stargazers_count || 0,
+      forksCount: req.body.repository?.forks_count || 0,
+    },
   };
 
   getInstallationToken(payload.installationId)

@@ -12,20 +12,79 @@ export async function insertOrUpdateRepository(
     githubRepoId: number;
     owner: string;
     name: string;
+    fullName?: string; // Kept for API compatibility but not stored in DB
+    description?: string;
+    url?: string;
+    htmlUrl?: string;
+    isPrivate?: boolean;
+    defaultBranch?: string;
+    language?: string;
+    starsCount?: number;
+    forksCount?: number;
   }
 ): Promise<void> {
-  const { githubRepoId, owner, name } = params;
+  const { 
+    githubRepoId, 
+    owner, 
+    name,
+  } = params;
 
-  await conn.execute(
-    `
-    INSERT INTO repositories (github_repo_id, owner, name)
-    VALUES (?, ?, ?)
-    ON DUPLICATE KEY UPDATE
-      owner = VALUES(owner),
-      name = VALUES(name)
-    `,
-    [githubRepoId, owner, name]
-  );
+  // First, try to check which columns exist
+  try {
+    // Try the full insert with all columns
+    await conn.execute(
+      `
+      INSERT INTO repositories (
+        github_repo_id, owner, name,
+        description, url, html_url, is_private,
+        default_branch, language, stars_count, forks_count
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE
+        owner = VALUES(owner),
+        name = VALUES(name),
+        description = VALUES(description),
+        url = VALUES(url),
+        html_url = VALUES(html_url),
+        is_private = VALUES(is_private),
+        default_branch = VALUES(default_branch),
+        language = VALUES(language),
+        stars_count = VALUES(stars_count),
+        forks_count = VALUES(forks_count),
+        updated_at = CURRENT_TIMESTAMP
+      `,
+      [
+        githubRepoId,
+        owner,
+        name,
+        params.description || null,
+        params.url || null,
+        params.htmlUrl || null,
+        params.isPrivate ?? false,
+        params.defaultBranch || 'main',
+        params.language || null,
+        params.starsCount || 0,
+        params.forksCount || 0,
+      ]
+    );
+  } catch (err: any) {
+    // If columns don't exist, fall back to basic columns only
+    if (err.code === 'ER_BAD_FIELD_ERROR') {
+      console.log("⚠️  Repository table missing new columns. Using basic columns only. Run 'npm run migrate-repositories' to add them.");
+      await conn.execute(
+        `
+        INSERT INTO repositories (github_repo_id, owner, name)
+        VALUES (?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+          owner = VALUES(owner),
+          name = VALUES(name)
+        `,
+        [githubRepoId, owner, name]
+      );
+    } else {
+      throw err;
+    }
+  }
 }
 
 /**

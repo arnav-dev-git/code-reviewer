@@ -1,4 +1,5 @@
 import mysql from "mysql2/promise";
+import type { Pool } from "mysql2/promise";
 
 const dbConfig = {
   host: process.env.DB_HOST || "localhost",
@@ -12,16 +13,25 @@ const dbConfig = {
   timeout: 10000, // 10 seconds
 };
 
-function connectDB() {
-  const pool = mysql.createPool({
+// Create a singleton pool instance
+let poolInstance: Pool | null = null;
+
+function connectDB(): Pool {
+  // Return existing pool if it exists
+  if (poolInstance) {
+    return poolInstance;
+  }
+
+  // Create new pool only once
+  poolInstance = mysql.createPool({
     ...dbConfig,
     waitForConnections: true,
-    connectionLimit: 10,
-    queueLimit: 0,
+    connectionLimit: 10, // Maximum 10 connections in the pool
+    queueLimit: 0, // Unlimited queue
   });
 
-  // Test connection on pool creation
-  pool.getConnection()
+  // Test connection on pool creation (only once)
+  poolInstance.getConnection()
     .then((connection) => {
       console.log("✅ Database connection pool created successfully");
       connection.release();
@@ -39,7 +49,7 @@ function connectDB() {
       console.error("  3. Environment variables are set correctly in .env file");
     });
 
-  return pool;
+  return poolInstance;
 }
 
 export default connectDB;

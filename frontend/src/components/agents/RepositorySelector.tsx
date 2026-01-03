@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Box,
   TextField,
@@ -19,16 +19,28 @@ interface RepositorySelectorProps {
 export default function RepositorySelector({ repositories, onChange }: RepositorySelectorProps) {
   const [inputValue, setInputValue] = useState("");
 
+  // Debug: Log when repositories prop changes
+  useEffect(() => {
+    console.log("🔄 RepositorySelector repositories updated:", repositories);
+  }, [repositories]);
+
   const handleAdd = () => {
     const repo = inputValue.trim();
     if (repo && !repositories.includes(repo)) {
-      onChange([...repositories, repo]);
+      const newRepos = [...repositories, repo];
+      console.log("➕ Adding repository:", repo, "New list:", newRepos);
+      onChange(newRepos);
+      setInputValue("");
+    } else if (repo && repositories.includes(repo)) {
+      // Repository already exists
       setInputValue("");
     }
   };
 
   const handleDelete = (repoToDelete: string) => {
-    onChange(repositories.filter((repo) => repo !== repoToDelete));
+    const newRepos = repositories.filter((repo) => repo !== repoToDelete);
+    console.log("➖ Removing repository:", repoToDelete, "New list:", newRepos);
+    onChange(newRepos);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {

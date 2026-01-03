@@ -37,6 +37,10 @@ router.post("/", async (req: Request, res: Response) => {
   try {
     const agentData = req.body;
 
+    console.log("📥 POST /agents - Received agent data:", JSON.stringify(agentData, null, 2));
+    console.log("📥 POST /agents - agentData.settings:", agentData.settings);
+    console.log("📥 POST /agents - agentData.settings?.repositories:", agentData.settings?.repositories);
+
     if (!agentData.id || !agentData.name) {
       return res.status(400).json({ error: "Agent ID and name are required" });
     }
@@ -45,6 +49,21 @@ router.post("/", async (req: Request, res: Response) => {
     if (existing) {
       return res.status(409).json({ error: "Agent with this ID already exists" });
     }
+
+    // Ensure settings.repositories is properly included
+    const settings = agentData.settings || {
+      enabled: true,
+      severityThreshold: 6,
+      fileTypeFilters: [],
+      repositories: [],
+    };
+
+    // Ensure repositories is an array
+    if (!Array.isArray(settings.repositories)) {
+      settings.repositories = [];
+    }
+
+    console.log("📥 POST /agents - Final settings being sent:", JSON.stringify(settings, null, 2));
 
     const agent = await agentQueries.createAgent({
       id: agentData.id,
@@ -59,14 +78,10 @@ router.post("/", async (req: Request, res: Response) => {
         clarity: true,
         helpfulness: true,
       },
-      settings: agentData.settings || {
-        enabled: true,
-        severityThreshold: 6,
-        fileTypeFilters: [],
-        repositories: [],
-      },
+      settings: settings,
     });
 
+    console.log("✅ POST /agents - Agent created successfully");
     res.status(201).json(agent);
   } catch (error) {
     console.error("Error creating agent:", error);
@@ -80,6 +95,10 @@ router.put("/:id", async (req: Request, res: Response) => {
     const { id } = req.params;
     const agentData = req.body;
 
+    console.log("📥 PUT /agents/:id - Received agent data:", JSON.stringify(agentData, null, 2));
+    console.log("📥 PUT /agents/:id - agentData.settings:", agentData.settings);
+    console.log("📥 PUT /agents/:id - agentData.settings?.repositories:", agentData.settings?.repositories);
+
     if (id !== agentData.id) {
       return res.status(400).json({ error: "Agent ID mismatch" });
     }
@@ -89,6 +108,21 @@ router.put("/:id", async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Agent not found" });
     }
 
+    // Ensure settings.repositories is properly included
+    const settings = agentData.settings || existing.settings || {
+      enabled: true,
+      severityThreshold: 6,
+      fileTypeFilters: [],
+      repositories: [],
+    };
+
+    // Ensure repositories is an array
+    if (!Array.isArray(settings.repositories)) {
+      settings.repositories = [];
+    }
+
+    console.log("📥 PUT /agents/:id - Final settings being sent:", JSON.stringify(settings, null, 2));
+
     const agent = await agentQueries.updateAgent({
       id: agentData.id,
       name: agentData.name,
@@ -96,10 +130,11 @@ router.put("/:id", async (req: Request, res: Response) => {
       promptHtml: agentData.promptHtml || existing.promptHtml,
       variables: agentData.variables || existing.variables,
       evaluationDimensions: agentData.evaluationDimensions || existing.evaluationDimensions,
-      settings: agentData.settings || existing.settings,
+      settings: settings,
       updatedAt: new Date().toISOString(),
     });
 
+    console.log("✅ PUT /agents/:id - Agent updated successfully");
     res.json(agent);
   } catch (error) {
     console.error("Error updating agent:", error);
