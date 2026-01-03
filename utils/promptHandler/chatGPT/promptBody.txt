@@ -1,0 +1,42 @@
+--- EVALUATION CONTEXT ---
+
+Code Changes:
+{code_changes}
+
+--- USER EVALUATION INSTRUCTIONS ---
+Evaluate the provided code changes as a senior software engineer.
+
+Focus on:
+- Correctness of logic and behavior
+- Potential bugs or edge cases
+- Security or data exposure risks
+- Maintainability and code quality
+- Production readiness
+
+--- REQUIRED OUTPUT SCHEMA ---
+
+Return a JSON object in the following exact format:
+
+{
+  "scores": {
+    "correctness": number,
+    "security": number,
+    "maintainability": number,
+    "clarity": number,
+    "production_readiness": number
+  },
+  "justification": {
+    "correctness": string,
+    "security": string,
+    "maintainability": string,
+    "clarity": string,
+    "production_readiness": string
+  },
+  "overall_summary": string
+}
+
+Rules:
+- All scores must be integers between 1 and 10.
+- All fields are required.
+- No extra fields are allowed.
+- Output JSON only.

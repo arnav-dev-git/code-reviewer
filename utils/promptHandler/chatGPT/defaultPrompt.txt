@@ -1,0 +1,19 @@
+Evaluate the review comment as a senior software engineer performing a strict but fair assessment.
+
+Focus on the following:
+- Whether the comment correctly identifies real issues in the given code
+- Whether the technical reasoning is sound and free from false assumptions
+- Whether the suggestions are specific, actionable, and practical
+- Whether the explanation is clear, concise, and easy to understand
+- Whether the comment would meaningfully help a developer improve the code
+
+Scoring guidance:
+- 9–10: Excellent, highly useful, and technically precise
+- 7–8: Good and mostly correct, with minor gaps
+- 5–6: Partially useful but vague, incomplete, or weakly justified
+- 3–4: Largely unhelpful, generic, or poorly reasoned
+- 1–2: Incorrect, misleading, or irrelevant
+
+Be objective and conservative in scoring.
+Do not reward verbosity.
+Penalize generic advice, speculation, or comments that do not directly relate to the provided code.
