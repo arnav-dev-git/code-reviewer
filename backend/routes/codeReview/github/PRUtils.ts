@@ -58,6 +58,28 @@ export function formatReviewCommentMD(reviewComment: ICodeEvaluation): string {
   const scoreLine = (label: string, score: number) =>
     `- **${label}**: ${score}/10 ${scoreEmoji(score)}`;
 
+  // Build review summary with bullet points
+  const reviewItems: string[] = [];
+  
+  if (justification.correctness) {
+    reviewItems.push(`- **✅ Correctness:** ${justification.correctness}`);
+  }
+  if (justification.security) {
+    reviewItems.push(`- **🔐 Security:** ${justification.security}`);
+  }
+  if (justification.maintainability) {
+    reviewItems.push(`- **🛠 Maintainability:** ${justification.maintainability}`);
+  }
+  if (justification.clarity) {
+    reviewItems.push(`- **✍️ Clarity:** ${justification.clarity}`);
+  }
+  if (justification.production_readiness) {
+    reviewItems.push(`- **🚀 Production Readiness:** ${justification.production_readiness}`);
+  }
+  if (overall_summary) {
+    reviewItems.push(`- **📄 Overall:** ${overall_summary}`);
+  }
+
   return `
 ## 🧠 Automated Code Review
 
@@ -70,27 +92,8 @@ ${scoreLine("Production Readiness", scores.production_readiness)}
 
 ---
 
-### 🔍 Detailed Analysis
-
-#### ✅ Correctness
-${justification.correctness}
-
-#### 🔐 Security
-${justification.security}
-
-#### 🛠 Maintainability
-${justification.maintainability}
-
-#### ✍️ Clarity
-${justification.clarity}
-
-#### 🚀 Production Readiness
-${justification.production_readiness}
-
----
-
-### 🧾 Overall Summary
-${overall_summary}
+### 📋 Review Summary
+${reviewItems.length > 0 ? reviewItems.join('\n\n') : 'No review details available.'}
 `.trim();
 }
 
@@ -143,23 +146,17 @@ export async function postReviewComment(
   owner: string,
   repo: string,
   prNumber: number,
-  comment: ICodeEvaluation
+  comment: ICodeEvaluation,
+  agentName?: string
 ) {
-  const formattedComment = formatReviewCommentMD(comment);
-
-  const pendingReview = await getPendingReview(token, owner, repo, prNumber);
-
-  if (pendingReview) {
-    return submitPendingReview(
-      token,
-      owner,
-      repo,
-      prNumber,
-      pendingReview.id,
-      formattedComment
-    );
+  // Include agent name in the comment if provided
+  let formattedComment = formatReviewCommentMD(comment);
+  if (agentName) {
+    formattedComment = `**Reviewed by: ${agentName}**\n\n${formattedComment}`;
   }
 
+  // Always create a new review comment instead of reusing pending reviews
+  // This ensures each agent's comment is posted separately
   return axios.post(
     `https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}/reviews`,
     {

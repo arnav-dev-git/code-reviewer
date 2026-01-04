@@ -28,6 +28,7 @@ import FileTypeFilter from "../components/agents/FileTypeFilter";
 import PromptPreview from "../components/agents/PromptPreview";
 import type { Agent } from "../features/agents/agentTypes";
 import { v4 as uuid } from "uuid";
+import { extractVariables } from "../utils/promptVariables";
 
 const createEmptyAgent = (): Partial<Agent> => ({
   name: "",
@@ -97,6 +98,17 @@ export default function AgentEditorPage() {
   useEffect(() => {
     console.log("📊 formData.settings.repositories changed:", formData.settings?.repositories);
   }, [formData.settings?.repositories]);
+
+  // Extract variables from promptHtml whenever it changes
+  useEffect(() => {
+    if (promptHtml) {
+      const extractedVars = extractVariables(promptHtml);
+      setFormData((prev) => ({
+        ...prev,
+        variables: extractedVars.length > 0 ? extractedVars : prev.variables || [],
+      }));
+    }
+  }, [promptHtml]);
 
   const handleSave = async () => {
     if (!formData) return;

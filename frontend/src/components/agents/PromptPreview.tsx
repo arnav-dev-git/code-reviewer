@@ -14,6 +14,7 @@ import { useState, useEffect } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import CodeBlock from "@tiptap/extension-code-block";
+import { replaceVariables, getDefaultVariableValues } from "../../utils/promptVariables";
 
 interface PromptPreviewProps {
   open: boolean;
@@ -45,13 +46,18 @@ export default function PromptPreview({
 
   // Replace variables in the prompt with test values
   const getPreviewContent = () => {
-    let content = promptHtml;
+    // Use default values for any variables not provided in testValues
+    const defaultValues = getDefaultVariableValues();
+    const allValues = { ...defaultValues, ...testValues };
+    
+    // Convert variables array to object format (remove braces from keys)
+    const variableValues: Record<string, string> = {};
     variables.forEach((variable) => {
       const key = variable.replace(/[{}]/g, "");
-      const value = testValues[key] || variable;
-      content = content.replace(new RegExp(variable.replace(/[{}]/g, "\\$&"), "g"), value);
+      variableValues[key] = allValues[key] || variable;
     });
-    return content;
+    
+    return replaceVariables(promptHtml, variableValues);
   };
 
   const previewEditor = useEditor({

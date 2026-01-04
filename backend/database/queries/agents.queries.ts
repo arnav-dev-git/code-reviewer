@@ -1,5 +1,6 @@
 import connectDB from "../connection.js";
 import * as agentReposQueries from "./agentRepositories.queries.js";
+import { extractVariables } from "../../utils/promptVariables.js";
 
 export interface AgentRow {
   id: string;
@@ -157,6 +158,12 @@ export async function createAgent(agent: Omit<Agent, "createdAt" | "updatedAt">)
   
   console.log("Creating agent with settings:", JSON.stringify(settings, null, 2));
   
+  // Automatically extract variables from promptHtml
+  const extractedVars = extractVariables(agent.promptHtml);
+  const variables = extractedVars.length > 0 
+    ? extractedVars 
+    : (agent.variables && agent.variables.length > 0 ? agent.variables : ["{code_chunk}", "{file_type}", "{context}"]);
+  
   await pool.execute(
     `INSERT INTO agents (
       id, name, description, prompt_html,
@@ -167,7 +174,7 @@ export async function createAgent(agent: Omit<Agent, "createdAt" | "updatedAt">)
       agent.name,
       agent.description || "",
       agent.promptHtml,
-      JSON.stringify(agent.variables),
+      JSON.stringify(variables),
       JSON.stringify(agent.evaluationDimensions),
       JSON.stringify(settings),
     ]
@@ -218,6 +225,12 @@ export async function updateAgent(agent: Omit<Agent, "createdAt">): Promise<Agen
   
   console.log("Updating agent with settings:", JSON.stringify(settings, null, 2));
   
+  // Automatically extract variables from promptHtml
+  const extractedVars = extractVariables(agent.promptHtml);
+  const variables = extractedVars.length > 0 
+    ? extractedVars 
+    : (agent.variables && agent.variables.length > 0 ? agent.variables : ["{code_chunk}", "{file_type}", "{context}"]);
+  
   await pool.execute(
     `UPDATE agents SET
       name = ?,
@@ -232,7 +245,7 @@ export async function updateAgent(agent: Omit<Agent, "createdAt">): Promise<Agen
       agent.name,
       agent.description || "",
       agent.promptHtml,
-      JSON.stringify(agent.variables),
+      JSON.stringify(variables),
       JSON.stringify(agent.evaluationDimensions),
       JSON.stringify(settings),
       agent.id,

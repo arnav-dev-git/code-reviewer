@@ -15,14 +15,12 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  TextField,
   Button,
   CircularProgress,
   Alert,
 } from "@mui/material";
 import AppLayout from "../components/layout/AppLayout";
-import { useAppSelector } from "../app/hooks";
-import { reviewsApi, type Review, type ReviewStats } from "../services/api";
+import { reviewsApi, agentsApi, type Review, type ReviewStats, type Agent } from "../services/api";
 import {
   LineChart,
   Line,
@@ -54,13 +52,29 @@ function TabPanel(props: TabPanelProps) {
 export default function ReviewsPage() {
   const [tabValue, setTabValue] = useState(0);
   const [selectedAgent, setSelectedAgent] = useState<string>("all");
-  const [dateRange, setDateRange] = useState({ start: "", end: "" });
-  const agents = useAppSelector((s) => s.agents.agents);
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [agentsLoading, setAgentsLoading] = useState(true);
 
   const [reviews, setReviews] = useState<Review[]>([]);
   const [stats, setStats] = useState<ReviewStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Fetch agents from API
+  useEffect(() => {
+    const fetchAgents = async () => {
+      try {
+        const agentsData = await agentsApi.getAll();
+        setAgents(agentsData);
+      } catch (err) {
+        console.error("Failed to fetch agents:", err);
+      } finally {
+        setAgentsLoading(false);
+      }
+    };
+
+    fetchAgents();
+  }, []);
 
   // Calculate helpfulness score from all scores
   const calculateHelpfulness = (scores: Review["scores"]): number => {
@@ -74,7 +88,7 @@ export default function ReviewsPage() {
     );
   };
 
-  // Fetch reviews and stats
+  // Fetch reviews and stats (filtered by backend)
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
@@ -83,12 +97,6 @@ export default function ReviewsPage() {
         const filters: any = {};
         if (selectedAgent !== "all") {
           filters.agentId = selectedAgent;
-        }
-        if (dateRange.start) {
-          filters.startDate = dateRange.start;
-        }
-        if (dateRange.end) {
-          filters.endDate = dateRange.end;
         }
 
         const [reviewsData, statsData] = await Promise.all([
@@ -107,7 +115,7 @@ export default function ReviewsPage() {
     };
 
     fetchData();
-  }, [selectedAgent, dateRange.start, dateRange.end]);
+  }, [selectedAgent]);
 
   const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
@@ -168,54 +176,39 @@ export default function ReviewsPage() {
         </Typography>
 
         {/* Filters */}
-        <Paper sx={{ p: 2 }}>
-          <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} md={4}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Filter by Agent</InputLabel>
-                <Select
-                  value={selectedAgent}
-                  label="Filter by Agent"
-                  onChange={(e) => setSelectedAgent(e.target.value)}
+        {(tabValue === 0 || tabValue === 1) && (
+          <Paper sx={{ p: 2 }}>
+            <Grid container spacing={2} alignItems="center">
+              <Grid item xs={12} md={4}>
+                <FormControl fullWidth size="small" disabled={agentsLoading}>
+                  <InputLabel>Filter by Agent</InputLabel>
+                  <Select
+                    value={selectedAgent}
+                    label="Filter by Agent"
+                    onChange={(e) => setSelectedAgent(e.target.value)}
+                  >
+                    <MenuItem value="all">All Agents</MenuItem>
+                    {agents.map((agent) => (
+                      <MenuItem key={agent.id} value={agent.id}>
+                        {agent.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} md={2}>
+                <Button 
+                  variant="outlined" 
+                  fullWidth 
+                  onClick={() => setSelectedAgent("all")}
+                  disabled={agentsLoading}
                 >
-                  <MenuItem value="all">All Agents</MenuItem>
-                  {agents.map((agent) => (
-                    <MenuItem key={agent.id} value={agent.id}>
-                      {agent.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+                  Clear
+                </Button>
+              </Grid>
             </Grid>
-            <Grid item xs={12} md={3}>
-              <TextField
-                type="date"
-                label="Start Date"
-                size="small"
-                fullWidth
-                value={dateRange.start}
-                onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
-                InputLabelProps={{ shrink: true }}
-              />
-            </Grid>
-            <Grid item xs={12} md={3}>
-              <TextField
-                type="date"
-                label="End Date"
-                size="small"
-                fullWidth
-                value={dateRange.end}
-                onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
-                InputLabelProps={{ shrink: true }}
-              />
-            </Grid>
-            <Grid item xs={12} md={2}>
-              <Button variant="outlined" fullWidth onClick={() => setDateRange({ start: "", end: "" })}>
-                Clear
-              </Button>
-            </Grid>
-          </Grid>
-        </Paper>
+          </Paper>
+        )}
 
         {/* Tabs */}
         <Paper>
@@ -348,10 +341,7 @@ export default function ReviewsPage() {
                                 size="small"
                               />
                             </Stack>
-                            {review.overallSummary && (
-                              <Typography variant="body1">{review.overallSummary}</Typography>
-                            )}
-                            <Stack direction="row" spacing={2} flexWrap="wrap">
+                            <Stack direction="row" spacing={2} flexWrap="wrap" sx={{ mb: 2 }}>
                               {Object.entries(displayScores).map(([key, value]) => (
                                 <Chip
                                   key={key}
@@ -361,69 +351,79 @@ export default function ReviewsPage() {
                                 />
                               ))}
                             </Stack>
-                            {(review.reasons.correctness ||
-                              review.reasons.security ||
-                              review.reasons.maintainability ||
-                              review.reasons.clarity ||
-                              review.reasons.productionReadiness) && (
-                              <Box>
-                                <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                                  Detailed Feedback:
-                                </Typography>
-                                <Stack spacing={1}>
-                                  {review.reasons.correctness && (
-                                    <Box>
-                                      <Typography variant="caption" fontWeight={600}>
-                                        Correctness:
-                                      </Typography>
-                                      <Typography variant="body2" color="text.secondary">
-                                        {review.reasons.correctness}
+                            <Box>
+                              <Typography variant="subtitle2" sx={{ mb: 1.5, display: "flex", alignItems: "center", gap: 1 }}>
+                                <span>📋</span> Review Summary
+                              </Typography>
+                              <Box
+                                component="ul"
+                                sx={{
+                                  margin: 0,
+                                  paddingLeft: 3,
+                                  "& li": {
+                                    marginBottom: 1.5,
+                                    "&::marker": {
+                                      color: "primary.main",
+                                    },
+                                  },
+                                }}
+                              >
+                                {review.reasons.correctness && (
+                                  <Box component="li">
+                                    <Typography variant="body2" color="text.secondary">
+                                      <strong>✅ Correctness:</strong> {review.reasons.correctness}
+                                    </Typography>
+                                  </Box>
+                                )}
+                                {review.reasons.security && (
+                                  <Box component="li">
+                                    <Typography variant="body2" color="text.secondary">
+                                      <strong>🔐 Security:</strong> {review.reasons.security}
+                                    </Typography>
+                                  </Box>
+                                )}
+                                {review.reasons.maintainability && (
+                                  <Box component="li">
+                                    <Typography variant="body2" color="text.secondary">
+                                      <strong>🛠 Maintainability:</strong> {review.reasons.maintainability}
+                                    </Typography>
+                                  </Box>
+                                )}
+                                {review.reasons.clarity && (
+                                  <Box component="li">
+                                    <Typography variant="body2" color="text.secondary">
+                                      <strong>✍️ Clarity:</strong> {review.reasons.clarity}
+                                    </Typography>
+                                  </Box>
+                                )}
+                                {review.reasons.productionReadiness && (
+                                  <Box component="li">
+                                    <Typography variant="body2" color="text.secondary">
+                                      <strong>🚀 Production Readiness:</strong> {review.reasons.productionReadiness}
+                                    </Typography>
+                                  </Box>
+                                )}
+                                {review.overallSummary && (
+                                  <Box component="li">
+                                    <Typography variant="body2" color="text.secondary">
+                                      <strong>📄 Overall:</strong> {review.overallSummary}
+                                    </Typography>
+                                  </Box>
+                                )}
+                                {!review.reasons.correctness &&
+                                  !review.reasons.security &&
+                                  !review.reasons.maintainability &&
+                                  !review.reasons.clarity &&
+                                  !review.reasons.productionReadiness &&
+                                  !review.overallSummary && (
+                                    <Box component="li">
+                                      <Typography variant="body2" color="text.secondary" sx={{ fontStyle: "italic" }}>
+                                        No review details available
                                       </Typography>
                                     </Box>
                                   )}
-                                  {review.reasons.security && (
-                                    <Box>
-                                      <Typography variant="caption" fontWeight={600}>
-                                        Security:
-                                      </Typography>
-                                      <Typography variant="body2" color="text.secondary">
-                                        {review.reasons.security}
-                                      </Typography>
-                                    </Box>
-                                  )}
-                                  {review.reasons.maintainability && (
-                                    <Box>
-                                      <Typography variant="caption" fontWeight={600}>
-                                        Maintainability:
-                                      </Typography>
-                                      <Typography variant="body2" color="text.secondary">
-                                        {review.reasons.maintainability}
-                                      </Typography>
-                                    </Box>
-                                  )}
-                                  {review.reasons.clarity && (
-                                    <Box>
-                                      <Typography variant="caption" fontWeight={600}>
-                                        Clarity:
-                                      </Typography>
-                                      <Typography variant="body2" color="text.secondary">
-                                        {review.reasons.clarity}
-                                      </Typography>
-                                    </Box>
-                                  )}
-                                  {review.reasons.productionReadiness && (
-                                    <Box>
-                                      <Typography variant="caption" fontWeight={600}>
-                                        Production Readiness:
-                                      </Typography>
-                                      <Typography variant="body2" color="text.secondary">
-                                        {review.reasons.productionReadiness}
-                                      </Typography>
-                                    </Box>
-                                  )}
-                                </Stack>
                               </Box>
-                            )}
+                            </Box>
                           </Stack>
                         </CardContent>
                       </Card>

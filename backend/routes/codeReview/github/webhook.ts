@@ -13,6 +13,8 @@ import {
   getAgentsForReview,
   getFileExtension,
 } from "../../../database/queries/agents.queries.js";
+import { replaceVariables, getDefaultVariableValues } from "../../../utils/promptVariables.js";
+import { normalizeCodeReview } from "../../../utils/normalizeCodeReview.js";
 
 
 async function processWebhook(payload: any, token: string) {
@@ -77,42 +79,41 @@ async function processWebhook(payload: any, token: string) {
           }];
 
 
-          let promptWithVariables = agent.promptHtml;
-          if (agent.variables && agent.variables.length > 0) {
-            // Replace {code_chunk} with actual code
-            if (promptWithVariables.includes("{code_chunk}")) {
-              promptWithVariables = promptWithVariables.replace(
-                /{code_chunk}/g,
-                file.patch || ""
-              );
-            }
-            // Replace {file_type} with file extension
-            if (promptWithVariables.includes("{file_type}")) {
-              promptWithVariables = promptWithVariables.replace(
-                /{file_type}/g,
-                fileExtension || "unknown"
-              );
-            }
-            // Replace {context} with additional context if needed
-            if (promptWithVariables.includes("{context}")) {
-              promptWithVariables = promptWithVariables.replace(
-                /{context}/g,
-                `Repository: ${payload.repoFullName}, PR: #${payload.prNumber}`
-              );
-            }
-          }
+          // Replace variables in prompt using utility function
+          const variableValues = getDefaultVariableValues(
+            file.patch || "",
+            fileExtension || "unknown",
+            `Repository: ${payload.repoFullName}, PR: #${payload.prNumber}`
+          );
           
-          const codeReview = await getCodeReview(JSON.stringify(changes), promptWithVariables);
+          const promptWithVariables = replaceVariables(agent.promptHtml, variableValues);
           
-          if (!codeReview) {
+          const codeReviewRaw = await getCodeReview(JSON.stringify(changes), promptWithVariables);
+          
+          if (!codeReviewRaw) {
             console.log(`⚠️  No review generated for ${file.filename} by ${agent.name}`);
             continue;
           }
 
+          // Normalize the code review result to ensure consistent structure
+          const codeReview = normalizeCodeReview(codeReviewRaw);
+          
+          // Log normalized result for debugging
+          console.log(`📊 Normalized code review for ${file.filename}:`, {
+            scores: codeReview.scores,
+            hasJustification: !!codeReview.justification,
+            overallSummary: codeReview.overall_summary?.substring(0, 100) + '...',
+          });
+          
+          // Validate that required fields exist
+          if (!codeReview.scores || !codeReview.justification) {
+            console.error(`❌ Invalid code review structure for ${file.filename}:`, JSON.stringify(codeReviewRaw, null, 2));
+            continue;
+          }
 
           try {
             await withTransaction(async (conn) => {
-              await insertCodeEvaluation(conn, {
+              const evaluationData = {
                 githubRepoId: payload.repoId,
                 prNumber: payload.prNumber,
                 agentId: agent.id,
@@ -131,18 +132,32 @@ async function processWebhook(payload: any, token: string) {
                   productionReadiness: codeReview.justification.production_readiness,
                 },
                 overallSummary: codeReview.overall_summary,
+              };
+              
+              console.log(`💾 Saving evaluation for ${file.filename}:`, {
+                scores: evaluationData.scores,
+                agentId: evaluationData.agentId,
+                prNumber: evaluationData.prNumber,
               });
               
-            await insertEvaluationRun(conn, {
-              githubRepoId: payload.repoId,
-              prNumber: payload.prNumber,
-              agentId: agent.id,
-              headSha: payload.prHeadSha,
-              status: "success",
-            });
+              await insertCodeEvaluation(conn, evaluationData);
+              
+              await insertEvaluationRun(conn, {
+                githubRepoId: payload.repoId,
+                prNumber: payload.prNumber,
+                agentId: agent.id,
+                headSha: payload.prHeadSha,
+                status: "success",
+              });
+              
+              console.log(`✅ Successfully saved evaluation for ${file.filename} by ${agent.name}`);
             });
           } catch (dbErr) {
             console.error(`❌ DB persistence failed for ${file.filename}:`, dbErr);
+            console.error(`❌ Error details:`, {
+              message: dbErr instanceof Error ? dbErr.message : String(dbErr),
+              stack: dbErr instanceof Error ? dbErr.stack : undefined,
+            });
           }
 
           try {
@@ -151,11 +166,16 @@ async function processWebhook(payload: any, token: string) {
               payload.owner,
               payload.repo,
               payload.prNumber,
-              codeReview
+              codeReview,
+              agent.name
             );
             console.log(`✅ Review comment posted by ${agent.name} for ${file.filename}`);
           } catch (commentErr) {
-            console.error(`❌ Failed to post comment for ${file.filename}:`, commentErr);
+            console.error(`❌ Failed to post comment for ${file.filename} by ${agent.name}:`, commentErr);
+            console.error(`❌ Comment error details:`, {
+              message: commentErr instanceof Error ? commentErr.message : String(commentErr),
+              response: (commentErr as any)?.response?.data,
+            });
           }
         } catch (err) {
           console.error(`❌ Error processing ${file.filename} with agent ${agent.name}:`, err);
